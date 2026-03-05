@@ -160,6 +160,7 @@ em { color: var(--accent); font-style: normal; }
 @media (max-width: 600px) {
   .img-row { grid-template-columns: 1fr; }
   .pipeline { flex-direction: column; }
+  .figure > div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
 }
 </style>
 </head>
@@ -167,7 +168,7 @@ em { color: var(--accent); font-style: normal; }
 <div class="paper">
 
 <h1>Test-Time Augmentation for Robust Robot Manipulation</h1>
-<p class="authors">A quick experiment in borrowing a trick from image classification</p>
+<p class="authors">A quick experiment by Yogev Angelovici & Aviv Melamud</p>
 
 <div class="result-box" style="margin-bottom:32px;">
 <strong>TL;DR:</strong> We take test-time augmentation &mdash; a standard trick from image classification &mdash; and apply it to robot control policies. By re-rendering a robot's camera view under varied lighting and textures, then taking the median action across variants, we recover up to +24 percentage points of success rate on visually degraded conditions with zero retraining. This is a possible use case for Lucy: an image-to-image model that can controllably re-render scenes could serve as a zero-shot robustness layer for any vision-based robot policy.
@@ -206,6 +207,20 @@ em { color: var(--accent); font-style: normal; }
 <div class="figure">
   <img src="assets/composite_grid.png" alt="5 TTA variants rendered from the same physical state">
   <div class="caption">Figure 1. Five TTA variants of the same physical scene under a degraded lighting condition (light_43). Each variant randomizes lighting and table/wall textures while keeping the physical state identical.</div>
+</div>
+
+<div class="figure">
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 8px;">
+    <div>
+      <video src="assets/trial0_success.mp4" autoplay loop muted playsinline style="width:100%; border-radius:6px; border:1px solid var(--border);"></video>
+      <div style="font-size:0.8rem; color:var(--green); text-align:center; margin-top:6px;">Success</div>
+    </div>
+    <div>
+      <video src="assets/trial0_failure.mp4" autoplay loop muted playsinline style="width:100%; border-radius:6px; border:1px solid var(--border);"></video>
+      <div style="font-size:0.8rem; color:var(--red); text-align:center; margin-top:6px;">Failure</div>
+    </div>
+  </div>
+  <div class="caption">Figure 2. Original view of a successful and failed trial. The task is: "turn on the stove and put the moka pot on it" (KITCHEN_SCENE3).</div>
 </div>
 
 <h2>4. Results</h2>
