@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test-Time Augmentation for Robust Robot Manipulation</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="demo_data.js"></script>
+<style>
+:root {
+  --bg: #111318;
+  --surface: #1a1d25;
+  --border: #282c3a;
+  --text: #c9cdd8;
+  --text-bright: #e8ebf0;
+  --text-dim: #6e7486;
+  --accent: #7b9bff;
+  --red: #ff7b8a;
+  --green: #7bffb0;
+  --yellow: #ffd27b;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  line-height: 1.75;
+  font-size: 16px;
+}
+.paper {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 60px 24px 80px;
+}
+h1 {
+  font-size: 1.7rem;
+  color: var(--text-bright);
+  text-align: center;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+.authors {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  margin-bottom: 40px;
+  font-style: italic;
+}
+h2 {
+  font-size: 1.15rem;
+  color: var(--text-bright);
+  margin: 40px 0 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+h3 {
+  font-size: 1rem;
+  color: var(--text-bright);
+  margin: 24px 0 8px;
+}
+p { margin-bottom: 14px; }
+strong { color: var(--text-bright); }
+em { color: var(--accent); font-style: normal; }
+
+/* Charts */
+.chart-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+}
+.chart-box .chart-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+.chart-wrap { position: relative; height: 320px; }
+
+/* Images */
+.figure {
+  margin: 24px 0;
+  text-align: center;
+}
+.figure img {
+  max-width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.figure .caption {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-top: 8px;
+  font-style: italic;
+}
+.img-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 20px 0;
+}
+.img-row img {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  image-rendering: pixelated;
+}
+.img-row .label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* Pipeline diagram */
+.pipeline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 20px 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+}
+.pipe-step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  text-align: center;
+  color: var(--text-bright);
+}
+.pipe-arrow { color: var(--text-dim); font-size: 1rem; }
+
+/* Key result callout */
+.result-box {
+  background: rgba(123, 155, 255, 0.06);
+  border-left: 3px solid var(--accent);
+  padding: 14px 18px;
+  margin: 20px 0;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.95rem;
+}
+
+/* Footer */
+.footer {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.footer ul { padding-left: 18px; }
+.footer li { margin-bottom: 2px; }
+
+@media (max-width: 600px) {
+  .img-row { grid-template-columns: 1fr; }
+  .pipeline { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+<div class="paper">
+
+<h1>Test-Time Augmentation for Robust Robot Manipulation</h1>
+<p class="authors">A quick experiment in borrowing a trick from image classification</p>
+
+<div class="result-box" style="margin-bottom:32px;">
+<strong>TL;DR:</strong> We take test-time augmentation &mdash; a standard trick from image classification &mdash; and apply it to robot control policies. By re-rendering a robot's camera view under varied lighting and textures, then taking the median action across variants, we recover up to +24 percentage points of success rate on visually degraded conditions with zero retraining. This is a possible use case for Lucy: an image-to-image model that can controllably re-render scenes could serve as a zero-shot robustness layer for any vision-based robot policy.
+</div>
+
+<h2>1. Motivation</h2>
+
+<p>Test-time augmentation (TTA) is a well-known technique in computer vision. The idea is simple: instead of classifying a single image, you create several augmented copies (flipped, cropped, color-shifted), run the model on each, and average the predictions. It consistently improves accuracy on ImageNet-style benchmarks by 1&ndash;3%, and is standard practice in competition settings and medical imaging where robustness matters.</p>
+
+<p>When we saw Decart's <strong>Lucy</strong> we thought: if we have a model powerful enough to do real-time video re-rendering,  <em>TTA should work for robots too.</em> A robot manipulation policy takes a camera image and outputs motor commands. If the visual environment shifts at deployment (new lighting, different table, unfamiliar background), the policy breaks. Lucy's ability to controllably re-render an image into plausible visual variants is exactly what TTA for robotics needs as its augmentation engine. The question was whether TTA would transfer from discrete class labels to continuous robot action spaces.</p>
+
+<h2>2. Hypothesis</h2>
+
+<p>If we render <em>N</em> visually different versions of the same physical robot scene &mdash; randomizing lighting, textures, or both &mdash; and aggregate the policy's action predictions across all N variants via element-wise <strong>median</strong>, the aggregated action should be more robust to visual distribution shift than any single prediction.</p>
+
+<p>Unlike the mean (standard in classification TTA), the median is robust to outliers. If one variant produces a wildly wrong action due to an unlucky render, the median ignores it. This matters because action spaces are continuous and a single bad prediction can crash the robot.</p>
+
+<h2>3. Method</h2>
+
+<p>To test this, we needed a controlled environment where we could (a) systematically degrade visual conditions and measure the effect on policy performance, and (b) simulate Lucy-style re-rendering by programmatically varying scene appearance. We used <strong>LIBERO-Plus</strong>, a simulated robotic manipulation benchmark built on MuJoCo, which gave us both: it ships with 50+ lighting perturbations per task, and its simulator lets us re-render the exact same physical state (same object poses, same robot configuration) under arbitrary lighting and texture parameters. This lets us prototype the full TTA pipeline &mdash; degrade, re-render, aggregate &mdash; in a setting where we can run thousands of trials with ground-truth success labels.</p>
+
+<div class="pipeline">
+  <div class="pipe-step">Observe scene</div>
+  <div class="pipe-arrow">&rarr;</div>
+  <div class="pipe-step">Re-render N variants<br><span style="color:var(--text-dim);font-size:0.75rem;">randomize lighting + texture</span></div>
+  <div class="pipe-arrow">&rarr;</div>
+  <div class="pipe-step">Query policy &times;N</div>
+  <div class="pipe-arrow">&rarr;</div>
+  <div class="pipe-step">Median aggregate</div>
+  <div class="pipe-arrow">&rarr;</div>
+  <div class="pipe-step">Execute</div>
+</div>
+
+<p>At each re-planning step, the simulator re-renders the current physical state with randomized visual parameters (lighting direction/intensity, table texture, wall texture). Each variant shares the exact same object positions and robot pose &mdash; only the appearance changes. The policy (pi0-fast, a 10-step action-chunking model) runs on each variant independently, and we take the element-wise median across all N action chunks before executing.</p>
+
+<div class="figure">
+  <img src="assets/composite_grid.png" alt="5 TTA variants rendered from the same physical state">
+  <div class="caption">Figure 1. Five TTA variants of the same physical scene under a degraded lighting condition (light_43). Each variant randomizes lighting and table/wall textures while keeping the physical state identical.</div>
+</div>
+
+<h2>4. Results</h2>
+
+<p>We evaluated on <strong>LIBERO-10</strong> (tabletop manipulation in LIBERO-Plus), focusing on the task most sensitive to visual shift: KITCHEN_SCENE3 ("turn on the stove and put the moka pot on it"). Under extreme lighting perturbations, the baseline policy drops from ~95% to as low as 62%.</p>
+
+<h3>4.1 TTA recovers degraded performance</h3>
+
+<p>With N=5 variants and combined (lighting + texture) augmentation, TTA recovers <em>+18pp</em> on light_41 (74% &rarr; 92%) and <em>+24pp</em> on light_43 (62% &rarr; 86%). All results are over 50 trials.</p>
+
+<div class="chart-box">
+  <div class="chart-title">Success rate by augmentation axis (N=5, median, 50 trials each)</div>
+  <div class="chart-wrap"><canvas id="axisChart"></canvas></div>
+</div>
+
+<p>Texture-only augmentation is surprisingly effective even for lighting perturbations, suggesting the median filters out appearance noise regardless of which axis generated it. Combined augmentation provides the strongest overall recovery.</p>
+
+<h3>4.2 How many variants do you need?</h3>
+
+<p>We swept N from 1 (baseline) to 15. The gains are steep early and diminish fast: N=3 captures roughly 70% of the total lift, N=5 captures ~88%. Beyond N=9, performance actually <em>decreases</em> &mdash; with too many diverse augmentations, the median drifts away from optimal.</p>
+
+<div class="chart-box">
+  <div class="chart-title">N-scaling: success rate vs. number of TTA variants</div>
+  <div class="chart-wrap"><canvas id="nScalingChart"></canvas></div>
+</div>
+
+<div class="result-box">
+  <strong>The sweet spot is N=3&ndash;5.</strong> This gives 85&ndash;92% of the maximum recovery at 3&ndash;5&times; inference cost. N=15 shows a non-monotonic drop (light_41 falls from 96% at N=9 to 84% at N=15), confirming that more is not always better.
+</div>
+
+<h2>5. Takeaway</h2>
+
+<p>We demonstrated one instance of zero-shot robustness improvement via TTA: on a specific task, under specific lighting degradations, median-aggregating 3&ndash;5 re-rendered variants recovers 18&ndash;24 percentage points of lost success rate with no retraining. That's a positive signal, but it's far from a general proof that TTA is broadly useful for robot policies.</p>
+
+<p>What we <em>don't</em> know yet:</p>
+<ul style="margin: 8px 0 14px 24px;">
+<li><strong>Why it works mechanistically.</strong> Is the median filtering out corrupted visual features? Averaging over a latent distribution the policy learned during training? We'd need to probe the model's internal representations &mdash; track how activations shift under degraded vs. augmented inputs, identify which layers are sensitive to visual shift, and test whether TTA's benefit correlates with specific feature robustness patterns.</li>
+<li><strong>How general it is.</strong> We tested one policy (pi0-fast), one benchmark (LIBERO), and one family of perturbations (lighting/texture). Does TTA help on real hardware where the sim-to-real gap is itself the distribution shift? On different policy architectures? On perturbation types we didn't test (camera angle, occlusion, novel objects)?</li>
+</ul>
+
+<p>That said, the direction is promising. As on-device compute continues to grow on robot platforms, the cost of running N=3&ndash;5 forward passes becomes increasingly trivial. TTA requires no architectural changes, no retraining, no new data &mdash; just more inference. If the trend of shipping more compute to the edge continues, a robustness layer like this starts to look essentially free.</p>
+
+<div class="footer">
+  <h3 style="color:var(--text-bright);border:none;margin:0 0 8px;">Methodology</h3>
+  <ul>
+    <li>Policy: pi0-fast (action-chunking VLA, 10-step chunks, 5-step replan)</li>
+    <li>Benchmark: LIBERO-10 / LIBERO-Plus with lighting and texture perturbations</li>
+    <li>Aggregation: element-wise median across N action chunks</li>
+    <li>50 trials per condition, seed=7, Wilson 95% CIs on all charts</li>
+    <li>Total: 2,844 trials across 113 experimental conditions</li>
+  </ul>
+</div>
+
+</div>
+
+<script>
+const BLUE = 'rgba(123, 155, 255, 1)';
+const BLUE_BG = 'rgba(123, 155, 255, 0.15)';
+const RED = 'rgba(255, 123, 138, 1)';
+const RED_BG = 'rgba(255, 123, 138, 0.15)';
+const GREEN = 'rgba(123, 255, 176, 1)';
+const GREEN_BG = 'rgba(123, 255, 176, 0.15)';
+const YELLOW = 'rgba(255, 210, 123, 1)';
+const YELLOW_BG = 'rgba(255, 210, 123, 0.15)';
+const GRAY = 'rgba(110, 116, 134, 1)';
+
+Chart.defaults.color = '#6e7486';
+Chart.defaults.borderColor = '#282c3a';
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.font.size = 12;
+
+// Error bar plugin
+Chart.register({
+  id: 'errorBars',
+  afterDraw(chart) {
+    const ctx = chart.ctx;
+    chart.data.datasets.forEach((ds, i) => {
+      if (!ds.errorBars) return;
+      const meta = chart.getDatasetMeta(i);
+      ds.errorBars.forEach((eb, j) => {
+        if (!eb) return;
+        const pt = meta.data[j];
+        if (!pt) return;
+        const x = pt.x, yScale = chart.scales.y;
+        const yMin = yScale.getPixelForValue(eb.lo);
+        const yMax = yScale.getPixelForValue(eb.hi);
+        ctx.save();
+        ctx.strokeStyle = ds.borderColor || '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath(); ctx.moveTo(x, yMin); ctx.lineTo(x, yMax); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x-3, yMin); ctx.lineTo(x+3, yMin); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x-3, yMax); ctx.lineTo(x+3, yMax); ctx.stroke();
+        ctx.restore();
+      });
+    });
+  }
+});
+
+function ci(d) { return {lo: d.ci_lo * 100, hi: d.ci_hi * 100}; }
+
+// Axis comparison chart
+(function() {
+  const ax = DEMO_DATA.axisComparison;
+  const conds = ['light_41', 'light_43', 'light_47'];
+  new Chart(document.getElementById('axisChart'), {
+    type: 'bar',
+    data: {
+      labels: ['light 41 (severe)', 'light 43 (most severe)', 'light 47 (mild)'],
+      datasets: [
+        {
+          label: 'Baseline (N=1)',
+          data: conds.map(c => ax[c].baseline.rate * 100),
+          backgroundColor: 'rgba(110,116,134,0.25)', borderColor: GRAY, borderWidth: 1.5, borderRadius: 3,
+          errorBars: conds.map(c => ci(ax[c].baseline))
+        },
+        {
+          label: 'Light-only TTA',
+          data: conds.map(c => ax[c].light_only.rate * 100),
+          backgroundColor: BLUE_BG, borderColor: BLUE, borderWidth: 1.5, borderRadius: 3,
+          errorBars: conds.map(c => ci(ax[c].light_only))
+        },
+        {
+          label: 'Texture-only TTA',
+          data: conds.map(c => ax[c].texture_only.rate * 100),
+          backgroundColor: YELLOW_BG, borderColor: YELLOW, borderWidth: 1.5, borderRadius: 3,
+          errorBars: conds.map(c => ci(ax[c].texture_only))
+        },
+        {
+          label: 'Combined TTA',
+          data: conds.map(c => ax[c].combined.rate * 100),
+          backgroundColor: GREEN_BG, borderColor: GREEN, borderWidth: 1.5, borderRadius: 3,
+          errorBars: conds.map(c => ci(ax[c].combined))
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true, pointStyle: 'rectRounded' } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)}%` } } },
+      scales: {
+        y: { beginAtZero: true, max: 100, title: { display: true, text: 'Success Rate (%)' }, grid: { color: 'rgba(40,44,58,0.5)' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+})();
+
+// N-scaling chart
+(function() {
+  const ns = DEMO_DATA.nScaling;
+  new Chart(document.getElementById('nScalingChart'), {
+    type: 'line',
+    data: {
+      labels: ns.n.map(n => 'N=' + n),
+      datasets: [
+        {
+          label: 'light 41 (74% baseline)',
+          data: ns.light_41.map(d => d.rate * 100),
+          borderColor: BLUE, backgroundColor: BLUE_BG, fill: false,
+          tension: 0.3, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2,
+          errorBars: ns.light_41.map(d => ({lo: d.ci_lo * 100, hi: d.ci_hi * 100}))
+        },
+        {
+          label: 'light 43 (62% baseline)',
+          data: ns.light_43.map(d => d.rate * 100),
+          borderColor: RED, backgroundColor: RED_BG, fill: false,
+          tension: 0.3, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2,
+          errorBars: ns.light_43.map(d => ({lo: d.ci_lo * 100, hi: d.ci_hi * 100}))
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label.split('(')[0].trim()}: ${ctx.parsed.y.toFixed(0)}%` } } },
+      scales: {
+        y: { min: 50, max: 100, title: { display: true, text: 'Success Rate (%)' }, grid: { color: 'rgba(40,44,58,0.5)' } },
+        x: { title: { display: true, text: 'Number of TTA Variants' }, grid: { display: false } }
+      }
+    }
+  });
+})();
+
+</script>
+</body>
+</html>
